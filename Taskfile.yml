@@ -1,0 +1,195 @@
+version: 3
+
+tasks:
+  default:
+    desc: Welcome to the project bootstrapper.
+    cmds:
+      - echo {{.OP_HOME}}
+      - task -l
+    silent: true
+    vars:
+      OP_HOME:
+        sh: "basename $PWD"
+    preconditions:
+      - sh: "which docker"
+        msg: "No docker found"
+      - sh: "which git"
+        msg: "No git found"
+      - sh: "which curl"
+        msg: "No curl found"
+
+  rbs:init:
+    desc: Initializes a railsbytes template
+    interactive: true
+    cmds:
+    - rbytes install https://railsbytes.com/script/V2GsbB
+
+  info:
+    desc: |-
+      Checks local config
+    cmds:
+      - rm -rf GITINFO
+      - rm -rf GITINFO.prive
+      - |
+        cat << EOF > GITINFO
+        GITINFO:
+          GIT_COMMIT: {{.GIT_COMMIT}}
+          GIT_BRANCH: {{.GIT_BRANCH}}
+          GIT_SHA: {{.GIT_SHA}}
+          GIT_SHA_SHORT: {{.GIT_SHA_SHORT}}
+          GIT_REPO: {{.GIT_REPO}}
+        EOF
+      - |
+        cat << EOF > GITINFO.prive
+        SYSINFO:
+          PATH: {{.OP_PATH}}
+        EOF
+
+    preconditions:
+      - sh: "which git"
+        msg: "No git found"
+      - sh: "git status"
+        msg: "Not a git-versioned directory"
+    vars:
+      OP_HOME:
+        sh: basename "$PWD"
+      OP_PATH:
+        sh: echo "$PWD"
+      GIT_COMMIT:
+        sh: git log -n 1 --format=%h
+      GIT_BRANCH:
+        sh: echo $(git symbolic-ref --short HEAD)
+      GIT_SHA:
+        sh: echo $(git rev-parse HEAD)
+      GIT_SHA_SHORT:
+        sh: echo $(git rev-parse --short HEAD)
+      GIT_REPO:
+        sh: git remote get-url origin
+
+
+  ignore:init:
+    desc: |-
+      Git inits the current folder
+    cmds:
+      - curl -L https://www.toptal.com/developers/gitignore/api/macos,linux,windows,visualstudiocode,vim,emacs,jetbrains+all,node,ruby,rails,go,helm,direnv,dotenv -o .gitignore
+      - |
+        cat << EOF >> .gitignore
+        
+        /GITINFO
+        .envrc
+        vendor/helm-charts
+        vendor/responses
+        vendor/values.yaml
+        /.env.development
+
+        /warehouse/*
+        /*/**/secrets/
+        .env*
+        !.env*.sample
+        .local/
+        project/
+        /fedora/
+        /podman.Dockerfile
+        /docker-compose.yml
+        sshkeys/*
+        !sshkeys/.keep
+        /secrets/*
+        !/secrets/.keep
+        /*acc.yaml
+        .kube/
+        /.secrets/
+
+        EOF
+
+      - cp .gitignore .dockerignore
+    status:
+      - ! test -f .gitignore
+      - ! test -f .dockerignore
+
+  ignore:append:
+    desc: |-
+      Appends to .gitignore in the current folder
+    cmds:
+      - curl -L https://www.toptal.com/developers/gitignore/api/macos,linux,windows,visualstudiocode,vim,emacs,jetbrains+all,node,ruby,rails,go,helm,direnv,dotenv >> .gitignore
+      - echo -e "\nwarehouse/\n/*/**/secrets/\n" >> .gitignore
+    status:
+      - test -f .gitignore
+
+  gh:dl:
+    internal: true
+    desc: |-
+      Downloads a fodler from github
+    cmds:
+      - echo "Running with CLI_ARGS {{.CLI_ARGS}}"
+      - |
+        curl -L https://download-directory.github.io/?url={{.CLI_ARGS}}
+
+  gitleaks:scan:
+    desc: |-
+      Scans with gitleaks for committed secrets
+    cmds:
+      - gitleaks detect -v
+
+  hooks:setup:
+    desc: |-
+      Sets up lefthook, gitleaks et al in the current folder
+    cmds:
+      - |
+        cat << EOF > lefthook.yml
+        pre-commit:
+          parallel: true
+          commands:
+            gitleaks:
+              tags: security
+              files: git ls-files -m
+              run: gitleaks detect -v
+              fail_text: You tried to commit forbidden data. Redact and retry
+
+        gitleaks-full:
+          commands:
+            gitleaks:
+              tags: security
+              files: git ls-files
+              run: gitleaks detect -v
+              fail_text: You have already committed forbidden data. STOP NOW and REMOVE them.
+          
+        EOF
+
+      - lefthook install
+      - lefthook run gitleaks-full
+
+
+    preconditions:
+      - sh: "which lefthook"
+        msg: "No lefthook found"
+      - sh: "which gitleaks"
+        msg: "You must install gitleaks"
+      - sh: "which curl"
+        msg: "No curl found"
+
+    status:
+      - test -f lefthook.yml
+
+  hooks:install:
+    desc: |-
+      Inits lefthook in the current folder
+    cmds:
+      - brew install lefthook
+      - brew install gitleaks
+      - mkdir -p ~/bin
+      - curl -L https://raw.githubusercontent.com/newren/git-filter-repo/main/git-filter-repo ~/bin/git-filter-repo
+      - chmod +x ~/bin/git-filter-repo
+
+
+    preconditions:
+      - sh: "which git"
+        msg: "No git found"
+      - sh: "which brew"
+        msg: "You must install homebrew"
+      - sh: "which curl"
+        msg: "No curl found"
+
+    status:
+      - which lefthook
+      - which gitleaks
+      - which git-filter-repo
