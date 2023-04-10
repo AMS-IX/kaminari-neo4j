@@ -106,24 +106,6 @@ tasks:
       - ! test -f .gitignore
       - ! test -f .dockerignore
 
-  ignore:append:
-    desc: |-
-      Appends to .gitignore in the current folder
-    cmds:
-      - curl -L https://www.toptal.com/developers/gitignore/api/macos,linux,windows,visualstudiocode,vim,emacs,jetbrains+all,node,ruby,rails,go,helm,direnv,dotenv >> .gitignore
-      - echo -e "\nwarehouse/\n/*/**/secrets/\n" >> .gitignore
-    status:
-      - test -f .gitignore
-
-  gh:dl:
-    internal: true
-    desc: |-
-      Downloads a fodler from github
-    cmds:
-      - echo "Running with CLI_ARGS {{.CLI_ARGS}}"
-      - |
-        curl -L https://download-directory.github.io/?url={{.CLI_ARGS}}
-
   gitleaks:scan:
     desc: |-
       Scans with gitleaks for committed secrets
